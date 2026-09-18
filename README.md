@@ -18,14 +18,30 @@ tools over MCP, added once as a custom connector.
 
 ## Setup
 
-1. `vercel link` (or import the repo in the Vercel dashboard).
+Already done: the project exists, is linked to this repo, and is deployed to
+`https://free-delegate-mtthwsbg.vercel.app`.
+
+1. **Turn off Vercel Authentication.** Vercel → free-delegate → Settings →
+   Deployment Protection → Vercel Authentication → Disabled → Save.
+   It defaults to on, and while it is on every request gets an SSO redirect, so
+   claude.ai cannot reach the endpoint at all. After this the only thing guarding
+   it is `MCP_SECRET` in the URL, which is the trade this design makes.
 2. `powershell -File scripts/push-env.ps1` — sets `MCP_SECRET` and whatever
    provider keys you want. One key is enough to start.
-3. `vercel --prod`.
+3. `vercel deploy --prod --yes` so the new variables are picked up.
+   (Pass `< /dev/null` if you script it: the CLI ignores `--yes` and waits on
+   stdin when stdin is a live terminal it cannot read.)
 4. claude.ai → Settings → Connectors → Add custom connector, URL:
-   `https://<deployment>/api/mcp/<MCP_SECRET>`
-5. Paste `reference/claude-chat-preferences.md` into Settings → Personal
-   preferences, so Claude actually reaches for the tool.
+   `https://free-delegate-mtthwsbg.vercel.app/api/mcp/<MCP_SECRET>`
+5. Paste `~/.claude/reference/claude-chat-preferences.md` into Settings →
+   Personal preferences, so Claude actually reaches for the tool.
+
+Check it from a terminal at any point — a wrong secret must 401, the right one
+must list three tools:
+
+```
+curl -s -X POST https://free-delegate-mtthwsbg.vercel.app/api/mcp/<MCP_SECRET>   -H "Content-Type: application/json"   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
 
 ## The routing table is not maintained here
 
