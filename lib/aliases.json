@@ -1,0 +1,29 @@
+{
+  "synced": "2026-09-18",
+  "source": "ask-free.mjs",
+  "aliases": {
+    "bulk": "groq/qwen/qwen3.8-27b",
+    "fast": "groq/openai/gpt-oss-20b",
+    "code": "mistral/codestral-latest",
+    "glm": "huggingface/zai-org/GLM-5.3-Flash",
+    "big": "gemini/gemma-4-26b-a4b-it",
+    "llama": "cloudflare-ai/@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "cohere": "cohere/command-a-03-2025",
+    "reason": "huggingface/zai-org/GLM-5.3",
+    "gemma": "huggingface/google/gemma-4-31B-it",
+    "deepseek": "huggingface/deepseek-ai/DeepSeek-V4-Flash-0731",
+    "minimax": "openrouter/minimax/minimax-m3:free",
+    "kimi": "huggingface/moonshotai/Kimi-K3",
+    "qwen": "openrouter/qwen/qwen3.8-flash",
+    "nvidia": "nvidia/deepseek-ai/deepseek-v4-flash-0731",
+    "ultra": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+    "quality": "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+    "gemini": "gemini/gemini-3.6-flash"
+  },
+  "chain": [
+    "groq/qwen/qwen3.8-27b",
+    "huggingface/deepseek-ai/DeepSeek-V4-Flash-0731",
+    "gemini/gemma-4-26b-a4b-it",
+    "mistral/codestral-latest"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "free-delegate",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP bridge that lets claude.ai chat and Cowork delegate bulk work to free models.",
+  "scripts": {
+    "sync": "node scripts/sync-aliases.mjs"
+  }
+}
