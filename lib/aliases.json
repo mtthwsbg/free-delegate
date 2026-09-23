@@ -1,19 +1,19 @@
 {
-  "synced": "2026-09-18",
+  "synced": "2026-09-23",
   "source": "ask-free.mjs",
   "aliases": {
-    "bulk": "groq/qwen/qwen3.8-27b",
-    "fast": "groq/openai/gpt-oss-20b",
+    "bulk": "groq/openai/gpt-oss-120b",
+    "fast": "groq/qwen/qwen3.8-27b",
     "code": "mistral/codestral-latest",
-    "glm": "huggingface/zai-org/GLM-5.3-Flash",
-    "big": "gemini/gemma-4-26b-a4b-it",
+    "glm": "cohere/command-a-03-2025",
+    "big": "cohere/command-a-plus-05-2026",
     "llama": "cloudflare-ai/@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-    "cohere": "cohere/command-a-03-2025",
-    "reason": "huggingface/zai-org/GLM-5.3",
-    "gemma": "huggingface/google/gemma-4-31B-it",
-    "deepseek": "huggingface/deepseek-ai/DeepSeek-V4-Flash-0731",
-    "minimax": "openrouter/minimax/minimax-m3:free",
-    "kimi": "huggingface/moonshotai/Kimi-K3",
+    "cohere": "cohere/command-r-08-2024",
+    "reason": "groq/openai/gpt-oss-20b",
+    "gemma": "gemini/gemma-4-26b-a4b-it",
+    "deepseek": "cohere/c4ai-aya-expanse-32b",
+    "minimax": "openrouter/dots-studio/dots-3-note-preview:free",
+    "kimi": "openrouter/inclusionai/ling-3.0-flash-fin:free",
     "qwen": "openrouter/qwen/qwen3.8-flash",
     "nvidia": "nvidia/deepseek-ai/deepseek-v4-flash-0731",
     "ultra": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
@@ -21,9 +21,9 @@
     "gemini": "gemini/gemini-3.6-flash"
   },
   "chain": [
-    "groq/qwen/qwen3.8-27b",
-    "huggingface/deepseek-ai/DeepSeek-V4-Flash-0731",
-    "gemini/gemma-4-26b-a4b-it",
+    "groq/openai/gpt-oss-120b",
+    "cohere/c4ai-aya-expanse-32b",
+    "cohere/command-a-plus-05-2026",
     "mistral/codestral-latest"
   ]
 }
