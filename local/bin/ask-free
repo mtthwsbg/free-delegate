@@ -1,0 +1,5 @@
+#!/bin/sh
+# POSIX wrapper so `ask-free` resolves in Git Bash, not just cmd/PowerShell.
+# The .cmd shim is invisible to sh, which is the shell most tool calls run in --
+# that alone made the command unusable from where it was most needed.
+exec node "$(dirname "$0")/lib/ask-free.mjs" "$@"

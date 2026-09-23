@@ -1,0 +1,3 @@
+#!/bin/sh
+# POSIX wrapper so `free-sync` resolves in Git Bash, not just cmd/PowerShell.
+exec node "$(dirname "$0")/lib/delegation-export.mjs" "$@"
