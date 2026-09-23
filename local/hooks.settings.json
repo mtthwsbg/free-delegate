@@ -1,0 +1,17 @@
+{
+  "_comment": "Merge into ~/.claude/settings.json under \"hooks\". Replace YOUR_NAME with your Windows user folder.",
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "timeout": 10, "statusMessage": "Warming free-model gateway",
+        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_NAME\\.claude\\bin\\lib\\gateway-warm.ps1\"" } ] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "timeout": 5, "statusMessage": "Routing check",
+        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_NAME\\.claude\\bin\\lib\\delegation-reminder.ps1\"" } ] }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "type": "command", "timeout": 15, "statusMessage": "Freeing OmniRoute memory",
+        "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_NAME\\.claude\\bin\\lib\\session-cleanup.ps1\"" } ] }
+    ]
+  }
+}

@@ -1,3 +1,9 @@
 node_modules
 .vercel
 .env*
+
+# never publish local gateway state or keys
+.omniroute/
+*.sqlite*
+call_logs/
+savings.jsonl
