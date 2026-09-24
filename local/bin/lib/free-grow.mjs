@@ -360,6 +360,12 @@ outer: while (picked.length < LIMIT + holders.length) {
 
 log("[free-grow] catalogue " + all.length + " usable models | " + untried.length + " never probed | " +
     "probing " + picked.length + " (" + holders.length + " incumbents)" + (DRY ? " [dry run]" : ""));
+// grow-weekly.ps1 reads this: while anything is still untested it probes daily
+// instead of weekly. 12 a week left most of a 500+ model catalogue never called.
+if (!DRY) try {
+  fs.writeFileSync(path.join(os.homedir(), ".omniroute", ".untried"),
+    String(Math.max(0, untried.length - (picked.length - holders.length))));
+} catch { /* the hook then falls back to its weekly cadence */ }
 
 // One model per provider in flight. Free tiers throttle per ACCOUNT, so firing
 // two of a provider's models at once makes that provider look broken — the same
@@ -371,14 +377,33 @@ for (const id of picked) {
   groups.get(p).push(id);
 }
 const results = [];
+let gatewayGone = false;
 await Promise.all([...groups.entries()].map(async ([, ids]) => {
   for (const id of ids) {
     if (Date.now() - START > DEADLINE) {
       log("  (deadline reached — " + id + " and the rest of " + id.split("/")[0] + " left for next run)");
       break;
     }
+    if (gatewayGone) break;
     const r = await probe(KEY, id);
+    // "fetch failed" means the local gateway is gone, not that the model is bad.
+    // Recording it would mark every remaining model as broken; stop instead.
+    if (!r.ok && /fetch failed|ECONNREFUSED/i.test(r.err ?? "")) {
+      gatewayGone = true;
+      log("  (gateway stopped answering at " + id + " -- stopping; nothing after this is recorded)");
+      break;
+    }
     results.push({ id, ...r });
+    // Save as we go. The ledger used to be written once at the end, so a run that
+    // died mid-way (2026-09-24: the gateway went down 45 probes into a sweep)
+    // threw away every result it had measured.
+    if (!DRY) {
+      ledger.models[id] = {
+        score: r.score ?? 0, max: r.max ?? QUIZ.length, ms: r.ms ?? null,
+        ok: Boolean(r.ok), err: r.err ?? null, ts: new Date().toISOString().slice(0, 10),
+      };
+      try { saveLedger(ledger); } catch { /* the end-of-run save still runs */ }
+    }
     log("  " + (r.ok ? (r.score + "/" + r.max) : "FAIL ").padEnd(6) +
         String(r.ms ?? "?").padStart(7) + "ms  " + id + (r.err ? "  " + r.err : ""));
   }
@@ -431,9 +456,12 @@ for (const alias of GENERAL) {
   // treat it like a dead holder so the rescue path replaces it. Without this
   // the CODE_MODEL rule only stopped NEW mistakes and left the existing ones
   // in rotation forever, because an incumbent is never re-checked as a candidate.
-  const misplaced = CODE_MODEL.test(cur);
-  const dead = !held || held.ok === false || misplaced;
   const fam = FAMILY[alias];
+  // Same for a stranger holding a family alias: it answers, but the alias no
+  // longer means what it says, so it is replaced by a real family member or
+  // reported, never kept on because it happens to be alive.
+  const misplaced = CODE_MODEL.test(cur) || Boolean(fam && !fam.test(cur));
+  const dead = !held || held.ok === false || misplaced;
   let best = null;
   for (const [id, v] of Object.entries(ledger.models)) {
     if (!v.ok || id === cur || claimed.has(id)) continue;
@@ -446,7 +474,11 @@ for (const alias of GENERAL) {
     const ownedElsewhere = Object.entries(FAMILY).some(([other, re]) =>
       other !== alias && needy.has(other) && re.test(id));
     if (ownedElsewhere && !(fam && fam.test(id))) continue;
-    if (fam && !dead && !fam.test(id)) continue;          // the name is a contract
+    // The name is a contract, ALSO when the holder is dead. The old `!dead &&`
+    // exemption let a rescue hand `deepseek` to Cohere Aya, `kimi` to Ling and
+    // `minimax` to dots (2026-09-23): the panels kept their names and lost their
+    // families. A dead family alias stays dead and leaves rotation instead.
+    if (fam && !fam.test(id)) continue;
     const speedAlias = LATENCY_FIRST.has(alias);
     const better = dead
       ? true
@@ -467,13 +499,13 @@ for (const alias of GENERAL) {
   }
   if (!best) {
     if (dead) changes.push("`" + alias + "` -> " + cur + (misplaced
-      ? " is a code model on a general alias"
+      ? (CODE_MODEL.test(cur) ? " is a code model on a general alias" : " is not a " + alias + "-family model")
       : " is DOWN (" + (held?.err ?? "never answered") + ")") +
       " and nothing measured can replace it yet");
     continue;
   }
   const note = best.v.score + "/" + best.v.max + " at " + best.v.ms + "ms";
-  const why = misplaced ? "code model on a general alias" : dead ? "RESCUE, holder down: " + (held?.err ?? "unmeasured") : "was " +
+  const why = misplaced ? (CODE_MODEL.test(cur) ? "code model on a general alias" : "holder was not a " + alias + "-family model") : dead ? "RESCUE, holder down: " + (held?.err ?? "unmeasured") : "was " +
               held.score + "/" + held.max + " at " + held.ms + "ms";
   if (DRY) { changes.push("[dry] would repoint `" + alias + "`: " + cur + " -> " + best.id + " (" + note + "; " + why + ")"); claimed.add(best.id); continue; }
   if (repoint(alias, cur, best.id, note)) {

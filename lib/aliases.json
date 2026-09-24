@@ -1,16 +1,16 @@
 {
-  "synced": "2026-09-23",
+  "synced": "2026-09-24",
   "source": "ask-free.mjs",
   "aliases": {
-    "bulk": "groq/openai/gpt-oss-120b",
+    "bulk": "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
     "fast": "groq/qwen/qwen3.8-27b",
     "code": "mistral/codestral-latest",
-    "glm": "cohere/command-a-03-2025",
+    "glm": "cloudflare-ai/@cf/zai-org/glm-4.7-flash",
     "big": "cohere/command-a-plus-05-2026",
     "llama": "cloudflare-ai/@cf/meta/llama-3.3-70b-instruct-fp8-fast",
     "cohere": "cohere/command-r-08-2024",
-    "reason": "groq/openai/gpt-oss-20b",
-    "gemma": "gemini/gemma-4-26b-a4b-it",
+    "reason": "gemini/gemini-flash-lite-latest",
+    "gemma": "nvidia/google/gemma-4-31b-it",
     "deepseek": "cohere/c4ai-aya-expanse-32b",
     "minimax": "openrouter/dots-studio/dots-3-note-preview:free",
     "kimi": "openrouter/inclusionai/ling-3.0-flash-fin:free",
@@ -21,7 +21,7 @@
     "gemini": "gemini/gemini-3.6-flash"
   },
   "chain": [
-    "groq/openai/gpt-oss-120b",
+    "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
     "cohere/c4ai-aya-expanse-32b",
     "cohere/command-a-plus-05-2026",
     "mistral/codestral-latest"
