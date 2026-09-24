@@ -21,11 +21,15 @@ A delegation protocol that lets Claude Code (and claude.ai chat / Cowork) hand d
 - `ask-free -f prompt.txt` – read the prompt from a file.  
 - `ask-free -o out.md` – write the result to disk instead of inserting it into the context.  
 - `ask-free --panel fast` – run several models at once (fast panel).  
+- `ask-free --panel wide` – the best measured model of each model family, one per provider (up to 6), built from the probe ledger at call time.  
+- `ask-free --private` – only providers whose API terms say prompts are not used for training (Groq, Cloudflare, Scaleway, Hugging Face). Use it for personal data.  
+- `-m bulk|fast|big|reason` spreads load: any measured model at least as accurate as the alias holder shares the job, so no single free quota does all the work.  
 - `free-stats` – show reliability metrics and lifetime token counts from the gateway’s call logs.  
 - `free-scout` – list unused free capacity and detect broken aliases.  
 - `free-grow --probe` / `free-grow --report` – measure new models and re-route aliases based on measured success rate.  
 - `free-sync` – export the current roster status; optionally uploads it to a dashboard if `DELEGATION_DASHBOARD` points at a repo containing `scripts/sync-delegation.mjs`.  
 - `add-providers` – interactively enter free-provider API keys into the gateway (one at a time).  
+- `claude-free` – run Claude Code itself on a free model through the gateway, for when your Claude quota is out (`--list` shows the candidates, `-m` forces one). Env-only; it never writes settings.json. claude.ai connectors are off in this mode.  
 - `hear <file-or-folder>` – transcribe audio/video via Groq Whisper; writes a `.txt` beside each source file.  
 - `see <file-or-folder> -o FILE` – image-to-text via a free vision model; writes the output to `FILE`.  
 - `omni-stop` – emergency kill of the gateway.

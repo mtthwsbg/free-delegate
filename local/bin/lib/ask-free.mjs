@@ -53,10 +53,10 @@ const ALIASES = {
   // Repointed 2026-09-01 from groq/gpt-oss-120b (62% over 32 calls; 413s on the
   // free TPM cap). Cohere is 4/4 at 763ms and is a general chat model, which is
   // what bulk prose drafting actually wants -- codestral is kept for code.
-  bulk:     "groq/openai/gpt-oss-120b", // 6/6 at 634ms (free-grow 2026-09-23, was groq/qwen/qwen3.8-27b)
+  bulk:     "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", // 6/6 at 3011ms (free-grow 2026-09-24, was groq/openai/gpt-oss-120b)
   fast:     "groq/qwen/qwen3.8-27b", // 5/6 at 342ms (free-grow 2026-09-23, was cohere/command-a-plus-05-2026)
   code:     "mistral/codestral-latest",                          // 0.59s
-  glm:      "cohere/command-a-03-2025", // 4/6 at 1006ms (free-grow 2026-09-23, was mistral/codestral-2508)
+  glm:      "cloudflare-ai/@cf/zai-org/glm-4.7-flash", // 3/6 at 6203ms (free-grow 2026-09-24, was cohere/command-a-03-2025)
   big:      "cohere/command-a-plus-05-2026", // 6/6 at 800ms (free-grow 2026-09-23, was groq/openai/gpt-oss-20b)
   // 6/6 on the accuracy set in 1.0s -- the best score-per-second measured on any
   // provider so far, and on a 70B model. Cloudflare needs an Account ID in
@@ -65,8 +65,8 @@ const ALIASES = {
   // 6/6 in 0.8s and 0.32s on a bare call -- the fastest provider measured.
   cohere:   "cohere/command-r-08-2024", // 4/6 at 331ms (free-grow 2026-09-23, was cohere/command-a-03-2025)
   // --- 1-3s ---
-  reason:   "groq/openai/gpt-oss-20b", // 5/6 at 523ms (free-grow 2026-09-23, was openrouter/inclusionai/ling-3.0-flash-fin:free)
-  gemma:    "gemini/gemma-4-26b-a4b-it", // 5/6 at 6138ms (free-grow 2026-09-23, was mistral/mistral-code-fim-latest)
+  reason:   "gemini/gemini-flash-lite-latest", // 6/6 at 3040ms (free-grow 2026-09-24, was groq/openai/gpt-oss-20b)
+  gemma:    "nvidia/google/gemma-4-31b-it", // 6/6 at 4734ms (free-grow 2026-09-24, was gemini/gemma-4-26b-a4b-it)
   deepseek: "cohere/c4ai-aya-expanse-32b", // 4/6 at 405ms (free-grow 2026-09-23, was huggingface/deepseek-ai/DeepSeek-V4-Flash-0731)
   minimax:  "openrouter/dots-studio/dots-3-note-preview:free", // 4/6 at 4241ms (free-grow 2026-09-23, was openrouter/minimax/minimax-m3:free)
   kimi:     "openrouter/inclusionai/ling-3.0-flash-fin:free", // 5/6 at 1273ms (free-grow 2026-09-23, was mistral/mistral-code-latest)
@@ -153,8 +153,58 @@ const PANELS = {
   max:   [ALIASES.ultra, ALIASES.kimi, ALIASES.bulk, ALIASES.code, ALIASES.qwen],
 };
 
+// --private: personal content (resume, job applications, Gmail, anything about
+// the user) goes ONLY to providers whose API terms say prompts are not used for
+// training. An allowlist on purpose: a wrong entry here leaks, a missing entry
+// only costs capacity. Free tiers of Gemini, Mistral's Experiment plan, OpenCode
+// and many OpenRouter :free endpoints may keep or train on prompts.
+const PRIVATE_OK = /^(groq|cloudflare-ai|scaleway|huggingface)\//;
+
+// A model's family, from its own name: "gpt-oss-120b" -> gpt, "qwen3.8-27b" -> qwen.
+const familyOf = (id) => (id.split("/").pop().toLowerCase().match(/[a-z]+/) ?? ["?"])[0];
+const CODE_ONLY = /code|coder|devstral|codestral|fim/i;
+
+// Load spreading for the JOB aliases. Pinning `bulk` to one model meant one
+// provider's free quota did all the work while dozens of measured-good models sat
+// idle. Any ledger model at least as accurate as the holder (and, for `fast`, no
+// more than 2x slower) shares the job; the pick rotates at random, and the rest of
+// the pool is the fallback. Family, code, quality and ultra aliases stay pinned:
+// they were chosen for a KIND of answer, not a score.
+const SPREAD = new Set(["bulk", "fast", "big", "reason"]);
+function spreadPool(alias) {
+  const holder = ALIASES[alias];
+  const s = ledgerModels();
+  const h = s[holder];
+  if (!h || h.ok === false) return [holder];
+  const pool = Object.entries(s)
+    .filter(([id, v]) => id !== holder && v.ok !== false && !CODE_ONLY.test(id) &&
+      (v.score ?? 0) >= (h.score ?? 0) && (alias !== "fast" || (v.ms ?? 1e9) <= 2 * (h.ms ?? 1e9)))
+    .map(([id]) => id);
+  const all = [holder, ...pool];
+  const first = all[Math.floor(Math.random() * all.length)];
+  return [first, ...all.filter((id) => id !== first)];
+}
+
+// --panel wide: the best measured model of every distinct family, one per
+// provider, up to 6. Built from the ledger at call time, so every newly probed
+// family joins without anyone editing this file.
+function widePanel() {
+  const s = ledgerModels();
+  const rows = Object.entries(s)
+    .filter(([id, v]) => v.ok !== false && (v.score ?? 0) >= 4 && !CODE_ONLY.test(id))
+    .sort((a, b) => (b[1].score - a[1].score) || (a[1].ms - b[1].ms));
+  const fams = new Set(), provs = new Set(), out = [];
+  for (const [id] of rows) {
+    const f = familyOf(id), p = id.split("/")[0];
+    if (fams.has(f) || provs.has(p)) continue;
+    fams.add(f); provs.add(p); out.push(id);
+    if (out.length >= 6) break;
+  }
+  return out.length ? out : PANELS.broad;
+}
+
 const args = process.argv.slice(2);
-let model = "auto", inFile = null, outFile = null, system = null, maxTok = 2048, list = false, panel = null, summarize = 0;
+let model = "auto", inFile = null, outFile = null, system = null, maxTok = 2048, list = false, panel = null, summarize = 0, priv = false;
 const rest = [];
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -165,6 +215,7 @@ for (let i = 0; i < args.length; i++) {
   else if (a === "--max") maxTok = parseInt(args[++i], 10);
   else if (a === "--list") list = true;
   else if (a === "--panel") panel = args[++i] ?? "fast";
+  else if (a === "--private") priv = true;
   else if (a === "--summarize") summarize = parseInt(args[++i] ?? "8", 10) || 8;
   else rest.push(a);
 }
@@ -241,7 +292,7 @@ if (list) {
 let prompt = rest.join(" ");
 if (inFile) prompt = fs.readFileSync(inFile, "utf8") + (prompt ? "\n\n" + prompt : "");
 if (!prompt.trim()) {
-  warn('usage: ask-free [-m alias|provider/model] [-f in] [-o out] [-s system] [--summarize N] "task"   (--list for models)');
+  warn('usage: ask-free [-m alias|provider/model] [-f in] [-o out] [-s system] [--summarize N] [--private] [--panel fast|broad|code|max|wide] "task"   (--list for models)');
   process.exit(2);
 }
 
@@ -296,7 +347,20 @@ async function call(id, msgs = messages, budget = maxTok) {
 // Nothing here reaches Claude's context: every answer goes to its own file and only
 // the summary table is printed.
 if (panel) {
-  const requested = PANELS[panel] ?? panel.split(",").map(s => ALIASES[s.trim()] ?? s.trim());
+  let requested = panel === "wide" ? widePanel()
+    : PANELS[panel] ?? panel.split(",").map(s => ALIASES[s.trim()] ?? s.trim());
+  // One member per provider, enforced at call time: free-grow repoints aliases
+  // on its own, and two aliases landing on one provider throttle each other.
+  const seenProv = new Set();
+  requested = requested.filter((id) => {
+    const p = id.split("/")[0];
+    if (seenProv.has(p)) return false;
+    seenProv.add(p); return true;
+  });
+  if (priv) {
+    requested = requested.filter((id) => PRIVATE_OK.test(id));
+    if (!requested.length) { warn("[ask-free] --private: no panel member is on a no-training provider"); process.exit(1); }
+  }
   // Drop members the ledger has measured as DOWN. A panel exists to collect
   // several opinions; a member that 401s contributes no opinion and only adds
   // latency to the slowest-member wall clock. Never drop the last one standing:
@@ -346,7 +410,16 @@ if (panel) {
   process.exit(0);
 }
 
-const wanted = model === "auto" ? chainOrder() : [ALIASES[model] ?? model];
+let wanted = model === "auto" ? chainOrder()
+  : SPREAD.has(model) ? spreadPool(model)
+  : [ALIASES[model] ?? model];
+if (priv) {
+  // Keep the caller's choice where it is private-safe; otherwise fall back to the
+  // best measured private-safe models rather than refusing outright.
+  const safe = wanted.filter((id) => PRIVATE_OK.test(id));
+  wanted = safe.length ? safe : chainOrder().filter((id) => PRIVATE_OK.test(id));
+  if (!wanted.length) { warn("[ask-free] --private: no no-training provider is available"); process.exit(1); }
+}
 
 // Failure budget. Without one, a bad day walks the whole chain and the caller
 // waits minutes for a result that was never coming -- which is exactly how two
