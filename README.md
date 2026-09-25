@@ -29,7 +29,7 @@ A delegation protocol that lets Claude Code (and claude.ai chat / Cowork) hand d
 - `free-grow --probe` / `free-grow --report` – measure new models and re-route aliases based on measured success rate.  
 - `free-sync` – export the current roster status; optionally uploads it to a dashboard if `DELEGATION_DASHBOARD` points at a repo containing `scripts/sync-delegation.mjs`.  
 - `add-providers` – interactively enter free-provider API keys into the gateway (one at a time).  
-- `claude-free` – run Claude Code itself on a free model through the gateway, for when your Claude quota is out (`--list` shows the candidates, `-m` forces one). Env-only; it never writes settings.json. claude.ai connectors are off in this mode.  
+- `claude-free` – run Claude Code itself on a free model through the gateway, for when your Claude quota is out (`--list` shows the candidates, `-m` forces one). Env-only. Its candidates were measured to accept Claude Code's effort parameter, tool calls and a 25k-token prompt (Mistral and Cohere reject the effort parameter with a 400). Every model slot (Opus/Sonnet/Haiku, subagents, classifier) points at a free model, gateway model discovery is off so paid models never show in /model, and `claude-free-guard.js` restores `model`/`modelSettings` in settings.json on exit, because a /model pick is written to the shared file. claude.ai connectors are off in this mode.  
 - `hear <file-or-folder>` – transcribe audio/video via Groq Whisper; writes a `.txt` beside each source file.  
 - `see <file-or-folder> -o FILE` – image-to-text via a free vision model; writes the output to `FILE`.  
 - `omni-stop` – emergency kill of the gateway.
