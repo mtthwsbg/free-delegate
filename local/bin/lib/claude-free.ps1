@@ -26,13 +26,18 @@
 #>
 $ErrorActionPreference = 'Stop'
 
+# Measured 2026-09-24 by REPLAYING a real Claude Code request (46 tools, full
+# system prompt, effort + thinking) from ~/.omniroute/call_logs, not a toy one.
+# A toy request passed on Gemini; the real one failed, because Gemini rejects the
+# JSON-Schema keyword `prefixItems` in the built-in ArtifactData tool. With the
+# Artifact tools disallowed (they need claude.ai anyway), Gemini answers in ~4s.
 $candidates = @(
-    'gemini/gemini-3.6-flash',                              # tools ok, 1.8s, 1M ctx
-    'gemini/gemini-3.5-flash-lite',                         # tools ok, 2.1s, 25k prompt 3s
-    'nvidia/google/gemma-4-31b-it',                         # tools ok, 13s
-    'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free',    # tools ok, 12s, ~50 req/day
-    'openrouter/cohere/north-mini-code:free',               # tools ok, 0.8s, coding model
-    'cloudflare-ai/@cf/google/gemma-4-26b-a4b-it'           # tools ok, 0.7s, small daily quota
+    'gemini/gemini-3.5-flash-lite',                         # 4s on the real request; generous free RPD
+    'gemini/gemini-flash-lite-latest',                      # 6s
+    'cloudflare-ai/@cf/google/gemma-4-26b-a4b-it',          # 6.5s, tool call ok; small daily quota
+    'openrouter/cohere/north-mini-code:free',               # 7.8s, tool call ok; ~50 req/day
+    'openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',  # 29s
+    'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free'     # 46s
 )
 $lite = 'gemini/gemini-3.5-flash-lite'   # background jobs: titles, classifier, subagents
 
@@ -104,7 +109,7 @@ Write-Output '  - Free tiers may log prompts: no resume, job, Gmail or personal 
 Write-Output ''
 
 try {
-    & claude --model $model @pass
+    & claude --model $model --disallowedTools 'Artifact,ArtifactData,ArtifactComments' @pass
     $code = $LASTEXITCODE
 } finally {
     if ((Test-Path $settings) -and (Test-Path $saved)) { node $guard restore $settings $saved }
