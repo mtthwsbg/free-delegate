@@ -39,12 +39,20 @@ $candidates = @(
     'openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',  # 29s
     'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free'     # 46s
 )
-$lite = 'gemini/gemini-3.5-flash-lite'   # background jobs: titles, classifier, subagents
+# The /model tiers, like Opus/Sonnet/Haiku in normal Claude Code. All three passed
+# the real-request replay. Start on the middle one; /model switches in-session.
+$tiers = [ordered]@{
+    opus   = 'gemini/gemini-3.6-flash'          # smartest of the three, ~30s a turn
+    sonnet = 'gemini/gemini-3.5-flash-lite'     # default: ~4s a turn
+    haiku  = 'gemini/gemini-flash-lite-latest'  # background jobs: titles, classifier, subagents
+}
+$lite = $tiers.haiku
 
-$model = $null; $list = $false; $pass = @()
+$model = $null; $list = $false; $dry = $false; $pass = @()
 for ($i = 0; $i -lt $args.Count; $i++) {
     if ($args[$i] -eq '-m' -or $args[$i] -eq '--model') { $i++; $model = $args[$i] }
     elseif ($args[$i] -eq '--list') { $list = $true }
+    elseif ($args[$i] -eq '--dry-run') { $dry = $true }
     else { $pass += $args[$i] }
 }
 
@@ -64,11 +72,9 @@ if ($list) {
     exit 0
 }
 
-$live = @($candidates | Where-Object { (Health $_) -ne 'DOWN' })
-if ($live.Count -eq 0) { $live = $candidates }
-if (-not $model) { $model = $live[0] }
-$second = @($live | Where-Object { $_ -ne $model })[0]
-if (-not $second) { $second = $model }
+# -m accepts a tier name (opus/sonnet/haiku) or any provider/model id.
+if ($model -and $tiers.Contains($model)) { $model = $tiers[$model] }
+if (-not $model) { $model = $tiers.sonnet }
 
 # Gateway up (same warm-up the SessionStart hook uses), and its API key.
 & (Join-Path $env:USERPROFILE '.claude\bin\lib\gateway-warm.ps1') | Out-Null
@@ -79,14 +85,15 @@ if (-not $key) { Write-Output 'claude-free: no OMNIROUTE_API_KEY in ~/.omniroute
 Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue
 Remove-Item Env:CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY -ErrorAction SilentlyContinue
 $env:ANTHROPIC_BASE_URL = 'http://localhost:20128'
+$env:CLAUDE_FREE = '1'   # delegation-reminder.ps1 switches to its light-mode reminder
 $env:ANTHROPIC_AUTH_TOKEN = $key
 $env:CLAUDE_CODE_AUTO_COMPACT_WINDOW = '190000'
 # Every slot Claude Code can reach for is a free model, so nothing falls through
 # to a paid claude-* route on the gateway. In /model, Opus/Sonnet/Haiku = these.
 $env:ANTHROPIC_MODEL = $model
-$env:ANTHROPIC_DEFAULT_OPUS_MODEL = $model
-$env:ANTHROPIC_DEFAULT_FABLE_MODEL = $model
-$env:ANTHROPIC_DEFAULT_SONNET_MODEL = $second
+$env:ANTHROPIC_DEFAULT_OPUS_MODEL = $tiers.opus
+$env:ANTHROPIC_DEFAULT_FABLE_MODEL = $tiers.opus
+$env:ANTHROPIC_DEFAULT_SONNET_MODEL = $tiers.sonnet
 $env:ANTHROPIC_DEFAULT_HAIKU_MODEL = $lite
 $env:ANTHROPIC_SMALL_FAST_MODEL = $lite
 $env:CLAUDE_CODE_SUBAGENT_MODEL = $lite
@@ -100,16 +107,38 @@ $saved = Join-Path $env:TEMP 'claude-free.settings-guard.json'
 $guard = Join-Path $env:USERPROFILE '.claude\bin\lib\claude-free-guard.js'   # a file, not node -e: PS 5.1 mangles quotes in native args
 if (Test-Path $settings) { node $guard save $settings $saved }
 
+# Light mode. Smaller models follow CLAUDE.md to the letter: on a bare 'test' the
+# first run loaded task-observer and launched an Explore agent (and plan mode, the
+# global default, adds a launch-Explore-agents workflow). Normal permission mode
+# plus these instructions make it behave like a plain assistant. No double quotes
+# in this text: PS 5.1 mangles them in native arguments.
+$light = 'You are running inside claude-free on a small free model, not Claude. In this session ONLY, ' +
+    'these CLAUDE.md rules do NOT apply: the task-observer session-start protocol, the /clear suggestion, ' +
+    'the delegation ledger, and delegating to ask-free. Answer greetings and short messages directly in ' +
+    'one or two sentences with no tool calls. Do not launch subagents (Agent/Explore) or load skills unless ' +
+    'the user asks for them. Keep tool use to the minimum the request needs, and ask before large changes.'
+
 Write-Output ''
 Write-Output "  claude-free -> $model  ($(Health $model))"
 Write-Output '  - FREE model: weaker at long multi-step work. Keep tasks small and check its edits.'
-Write-Output "  - /model: Opus = $model, Sonnet = $second, Haiku = $lite. Never pick claude/anthropic names."
+Write-Output "  - /model  Opus = $($tiers.opus) (slow, smartest)  Sonnet = $($tiers.sonnet)  Haiku = $($tiers.haiku)"
+Write-Output '  - Gemini quota out? restart with: claude-free -m cloudflare-ai/@cf/google/gemma-4-26b-a4b-it'
 Write-Output '  - No claude.ai connectors here (Gmail, Drive, Calendar, Supabase, Vercel).'
 Write-Output '  - Free tiers may log prompts: no resume, job, Gmail or personal data in this session.'
 Write-Output ''
 
+$claudeArgs = @('--model', $model, '--permission-mode', 'default',
+    '--disallowedTools', 'Artifact,ArtifactData,ArtifactComments',
+    '--append-system-prompt', $light) + $pass
+if ($dry) {
+    Write-Output '  [dry run] would launch: claude'
+    foreach ($a in $claudeArgs) { Write-Output ('    ' + $a) }
+    Get-ChildItem Env: | Where-Object { $_.Name -match '^(ANTHROPIC_(MODEL|DEFAULT_|BASE_URL|SMALL)|CLAUDE_CODE_(SUBAGENT|AUTO_MODE|BG_CLASS|ENABLE_GATEWAY))' } |
+        ForEach-Object { Write-Output ('    env ' + $_.Name + '=' + $_.Value) }
+    exit 0
+}
 try {
-    & claude --model $model --disallowedTools 'Artifact,ArtifactData,ArtifactComments' @pass
+    & claude @claudeArgs
     $code = $LASTEXITCODE
 } finally {
     if ((Test-Path $settings) -and (Test-Path $saved)) { node $guard restore $settings $saved }
